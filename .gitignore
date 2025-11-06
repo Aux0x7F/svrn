@@ -1,0 +1,20 @@
+# Go
+/bin/
+/build/
+/dist/
+/coverage.out
+*.test
+*.exe
+*.dll
+*.so
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Misc
+.env
