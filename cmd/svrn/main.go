@@ -1,52 +1,42 @@
 package main
 
 import (
-  "flag"
-  "fmt"
-  "os"
-  "strings"
+	"fmt"
+	"os"
+
+	"svrn/internal/config"
+	"svrn/internal/logging"
+	"svrn/pkg/agent"
 )
 
-var (
-  flagRoles     = flag.String("roles", "", "comma-separated: consumer,provider,relay,seed (default consumer-only)")
-  flagServices  = flag.String("services", "", "comma-separated: blob,crdt")
-  flagConfig    = flag.String("config", "", "path to YAML config (optional)")
-  flagCommunity = flag.String("community", "", "bootstrap community URI (file/http i2p/git)")
-  flagRouter    = flag.String("router", "auto", "i2p router: auto | external:host:port")
-  flagVersion   = flag.Bool("version", false, "print version")
-)
-
-const version = "0.0.0-dev"
+var version = "0.0.0-dev"
 
 func main() {
-  flag.Parse()
-  if *flagVersion {
-    fmt.Println("svrn", version)
-    return
-  }
+	// Early flag check for --version without loading full config
+	for _, arg := range os.Args[1:] {
+		if arg == "--version" || arg == "version" || arg == "-v" {
+			fmt.Println("svrn", version)
+			return
+		}
+	}
 
-  roles := parseList(*flagRoles)
-  services := parseList(*flagServices)
+	// Initialize logging (temporary stderr until config loads)
+	log := logging.New()
 
-  if len(roles) == 0 {
-    fmt.Println("svrn: consumer mode (default). Try --roles provider,relay --services blob,crdt")
-    os.Exit(0)
-  }
+	// Load config from flags/env/YAML with proper precedence
+	cfg, err := config.Load()
+	if err != nil {
+		log.Fatal("config load failed", "error", err)
+	}
 
-  fmt.Printf("svrn starting roles=%v services=%v router=%s community=%s config=%s\n",
-    roles, services, *flagRouter, *flagCommunity, *flagConfig)
+	// Create agent with resolved configuration
+	ag, err := agent.New(cfg)
+	if err != nil {
+		log.Fatal("agent init failed", "error", err)
+	}
 
-  // TODO: load config, init router, DHT, services per RFC.
-}
-
-func parseList(s string) []string {
-  s = strings.TrimSpace(s)
-  if s == "" { return nil }
-  parts := strings.Split(s, ",")
-  out := make([]string, 0, len(parts))
-  for _, p := range parts {
-    v := strings.TrimSpace(p)
-    if v != "" { out = append(out, v) }
-  }
-  return out
+	// Start node runtime
+	if err := ag.Start(); err != nil {
+		log.Fatal("agent start failed", "error", err)
+	}
 }
